@@ -1181,6 +1181,24 @@ class GameManager extends ChangeNotifier {
       case PowerUpType.laserPaddle:
         laserPaddleTimer = 6.0;
         break;
+
+      case PowerUpType.extraLife:
+        if (lives < 3) {
+          lives++;
+          floatingTexts.add(FloatingText(
+            text: "+1 Life ❤️",
+            position: paddle.getRect(screenHeight).topCenter - const Offset(0, 20),
+            color: Colors.pinkAccent,
+          ));
+        } else {
+          score += 100;
+          floatingTexts.add(FloatingText(
+            text: "+100 Max Lives Bonus!",
+            position: paddle.getRect(screenHeight).topCenter - const Offset(0, 20),
+            color: Colors.amberAccent,
+          ));
+        }
+        break;
     }
   }
 
