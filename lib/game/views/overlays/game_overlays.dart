@@ -561,16 +561,23 @@ class AchievementsOverlay extends StatelessWidget {
                 icon: const Icon(Icons.arrow_back, color: Colors.white70),
                 onPressed: onClose,
               ),
-              const Text(
-                "ACHIEVEMENTS",
-                style: TextStyle(
-                  color: Colors.pinkAccent,
-                  fontSize: 20.0,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 2.0,
-                  shadows: [
-                    Shadow(color: Colors.pink, blurRadius: 10.0),
-                  ],
+              const Expanded(
+                child: Center(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      "ACHIEVEMENTS",
+                      style: TextStyle(
+                        color: Colors.pinkAccent,
+                        fontSize: 20.0,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 2.0,
+                        shadows: [
+                          Shadow(color: Colors.pink, blurRadius: 10.0),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(width: 48.0),
