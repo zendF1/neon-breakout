@@ -34,6 +34,12 @@ class GamePainter extends CustomPainter {
     // 5b. Draw Hazards (Bombs & Glitch Orbs)
     _drawHazards(canvas);
 
+    // 5c. Draw Drone Enemies
+    _drawDrones(canvas);
+
+    // 5d. Draw Laser Bullets
+    _drawLasers(canvas);
+
     // 6. Draw Paddle
     _drawPaddle(canvas, size.height);
 
@@ -140,18 +146,30 @@ class GamePainter extends CustomPainter {
     Rect paddleRect = manager.paddle.getRect(screenHeight);
     RRect rrect = RRect.fromRectAndRadius(paddleRect, const Radius.circular(8.0));
 
+    Color paddleColor = manager.laserPaddleTimer > 0 ? Colors.amberAccent : manager.paddle.color;
+    Color glowColor = manager.laserPaddleTimer > 0 ? Colors.amber.withOpacity(0.6) : manager.paddle.glowColor;
+
     // 1. Draw Neon Glow
     final Paint glowPaint = Paint()
-      ..color = manager.paddle.glowColor
+      ..color = glowColor
       ..style = PaintingStyle.fill
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10.0);
     canvas.drawRRect(rrect, glowPaint);
 
     // 2. Draw Solid Fill
     final Paint fillPaint = Paint()
-      ..color = manager.paddle.color
+      ..color = paddleColor
       ..style = PaintingStyle.fill;
     canvas.drawRRect(rrect, fillPaint);
+
+    // Draw nozzles if laser active
+    if (manager.laserPaddleTimer > 0) {
+      final Paint nozzlePaint = Paint()
+        ..color = Colors.amber
+        ..style = PaintingStyle.fill;
+      canvas.drawRect(Rect.fromLTWH(paddleRect.left - 4, paddleRect.top + 2, 4, paddleRect.height - 4), nozzlePaint);
+      canvas.drawRect(Rect.fromLTWH(paddleRect.right, paddleRect.top + 2, 4, paddleRect.height - 4), nozzlePaint);
+    }
 
     // 3. Draw Highlight
     final Paint highlightPaint = Paint()
@@ -164,6 +182,22 @@ class GamePainter extends CustomPainter {
       ),
       highlightPaint,
     );
+
+    // 4. Stun Electrocution lines (Yellow static noise)
+    if (manager.paddleStunTimer > 0) {
+      final Paint stunPaint = Paint()
+        ..color = Colors.yellowAccent
+        ..strokeWidth = 1.5
+        ..style = PaintingStyle.stroke;
+      final rand = math.Random();
+      for (int k = 0; k < 6; k++) {
+        double px1 = paddleRect.left + rand.nextDouble() * paddleRect.width;
+        double py1 = paddleRect.top - 6.0 + rand.nextDouble() * (paddleRect.height + 12.0);
+        double px2 = px1 + (rand.nextDouble() * 12.0 - 6.0);
+        double py2 = py1 + (rand.nextDouble() * 12.0 - 6.0);
+        canvas.drawLine(Offset(px1, py1), Offset(px2, py2), stunPaint);
+      }
+    }
   }
 
   void _drawBalls(Canvas canvas) {
@@ -392,6 +426,79 @@ class GamePainter extends CustomPainter {
       }
 
       canvas.restore();
+    }
+  }
+
+  void _drawDrones(Canvas canvas) {
+    for (var drone in manager.drones) {
+      if (drone.isDestroyed) continue;
+      
+      final Offset pos = drone.position;
+      final Rect rect = drone.rect;
+      
+      final Paint glowPaint = Paint()
+        ..color = Colors.pink.withOpacity(0.6)
+        ..style = PaintingStyle.fill
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12.0);
+      canvas.drawOval(rect, glowPaint);
+      
+      final Paint bodyPaint = Paint()
+        ..color = const Color(0xFF2C1A24)
+        ..style = PaintingStyle.fill;
+      canvas.drawOval(rect, bodyPaint);
+      
+      final Paint borderPaint = Paint()
+        ..color = Colors.pinkAccent
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.0;
+      canvas.drawOval(rect, borderPaint);
+      
+      canvas.drawLine(Offset(rect.left, pos.dy), Offset(rect.left - 6.0, pos.dy - 3), borderPaint);
+      canvas.drawLine(Offset(rect.right, pos.dy), Offset(rect.right + 6.0, pos.dy - 3), borderPaint);
+      
+      double eyeRadius = 4.0 + math.sin(DateTime.now().millisecondsSinceEpoch * 0.01).abs() * 2.0;
+      final Paint eyeGlow = Paint()
+        ..color = Colors.red.withOpacity(0.8)
+        ..style = PaintingStyle.fill
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6.0);
+      canvas.drawCircle(pos, eyeRadius, eyeGlow);
+      
+      final Paint eyeCore = Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.fill;
+      canvas.drawCircle(pos, 2.0, eyeCore);
+    }
+  }
+
+  void _drawLasers(Canvas canvas) {
+    for (var bullet in manager.laserBullets) {
+      if (bullet.isDestroyed) continue;
+      
+      final Paint glowPaint = Paint()
+        ..color = Colors.amber.withOpacity(0.7)
+        ..style = PaintingStyle.fill
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6.0);
+      canvas.drawRect(bullet.rect, glowPaint);
+      
+      final Paint corePaint = Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.fill;
+      canvas.drawRect(bullet.rect.deflate(0.5), corePaint);
+    }
+    
+    for (var bullet in manager.enemyLasers) {
+      if (bullet.isDestroyed) continue;
+      
+      final Paint glowPaint = Paint()
+        ..color = Colors.red.withOpacity(0.7)
+        ..style = PaintingStyle.fill
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6.0);
+      canvas.drawRect(bullet.rect, glowPaint);
+      
+      final Paint corePaint = Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.fill;
+      canvas.drawRect(bullet.rect.deflate(0.5), corePaint);
     }
   }
 

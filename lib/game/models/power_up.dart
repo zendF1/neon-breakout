@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-enum PowerUpType { multiBall, widePaddle, slowMotion }
+enum PowerUpType { multiBall, widePaddle, slowMotion, laserPaddle }
 
 class PowerUp {
   Offset position;
@@ -26,7 +26,9 @@ class PowerUp {
       case PowerUpType.widePaddle:
         return Colors.blueAccent;
       case PowerUpType.slowMotion:
-        return Colors.purpleAccent;
+        return Colors.cyanAccent;
+      case PowerUpType.laserPaddle:
+        return Colors.amberAccent;
     }
   }
 
@@ -42,6 +44,8 @@ class PowerUp {
         return "↔";
       case PowerUpType.slowMotion:
         return "⏰";
+      case PowerUpType.laserPaddle:
+        return "⚡";
     }
   }
 

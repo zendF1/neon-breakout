@@ -169,6 +169,8 @@ class MenuOverlay extends StatelessWidget {
   final VoidCallback onStart;
   final VoidCallback onOpenShop;
   final VoidCallback onOpenLevelSelect;
+  final VoidCallback onOpenAchievements;
+  final VoidCallback onToggleMode;
 
   const MenuOverlay({
     super.key,
@@ -176,10 +178,16 @@ class MenuOverlay extends StatelessWidget {
     required this.onStart,
     required this.onOpenShop,
     required this.onOpenLevelSelect,
+    required this.onOpenAchievements,
+    required this.onToggleMode,
   });
 
   @override
   Widget build(BuildContext context) {
+    String scoreText = manager.isEndlessMode
+        ? "Endless Best: ${manager.endlessHighScore}"
+        : "Campaign Best: ${manager.highScore}";
+
     return _FrostedContainer(
       child: SingleChildScrollView(
         child: Column(
@@ -211,30 +219,77 @@ class MenuOverlay extends StatelessWidget {
             ),
             const SizedBox(height: 12.0),
             Text(
-              "High Score: ${manager.highScore}  |  👛 Coins: ${manager.coins}",
+              "$scoreText  |  👛 Coins: ${manager.coins}",
               style: const TextStyle(
                 color: Colors.white70,
-                fontSize: 14.0,
+                fontSize: 13.0,
                 fontWeight: FontWeight.bold,
               ),
             ),
-            const SizedBox(height: 28.0),
+            const SizedBox(height: 16.0),
+            
+            // Mode Toggle Selector Button
+            InkWell(
+              onTap: onToggleMode,
+              borderRadius: BorderRadius.circular(8.0),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.04),
+                  borderRadius: BorderRadius.circular(8.0),
+                  border: Border.all(
+                    color: manager.isEndlessMode ? Colors.purpleAccent : Colors.cyanAccent,
+                    width: 1.2,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      manager.isEndlessMode ? Icons.all_inclusive : Icons.map_outlined,
+                      color: manager.isEndlessMode ? Colors.purpleAccent : Colors.cyanAccent,
+                      size: 16.0,
+                    ),
+                    const SizedBox(width: 8.0),
+                    Text(
+                      manager.isEndlessMode ? "MODE: ENDLESS" : "MODE: CAMPAIGN",
+                      style: TextStyle(
+                        color: manager.isEndlessMode ? Colors.purpleAccent : Colors.cyanAccent,
+                        fontSize: 12.0,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.0,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            
+            const SizedBox(height: 24.0),
             _NeonButton(
               text: "START GAME",
               color: Colors.cyanAccent,
               onPressed: onStart,
             ),
-            const SizedBox(height: 12.0),
-            _NeonButton(
-              text: "SELECT MAP",
-              color: Colors.purpleAccent,
-              onPressed: onOpenLevelSelect,
-            ),
+            if (!manager.isEndlessMode) ...[
+              const SizedBox(height: 12.0),
+              _NeonButton(
+                text: "SELECT MAP",
+                color: Colors.purpleAccent,
+                onPressed: onOpenLevelSelect,
+              ),
+            ],
             const SizedBox(height: 12.0),
             _NeonButton(
               text: "COSMETIC SHOP",
               color: Colors.amberAccent,
               onPressed: onOpenShop,
+            ),
+            const SizedBox(height: 12.0),
+            _NeonButton(
+              text: "ACHIEVEMENTS",
+              color: Colors.pinkAccent,
+              onPressed: onOpenAchievements,
             ),
             const SizedBox(height: 28.0),
             Container(
@@ -483,6 +538,181 @@ class LevelSelectOverlay extends StatelessWidget {
   }
 }
 
+class AchievementsOverlay extends StatelessWidget {
+  final GameManager manager;
+  final VoidCallback onClose;
+
+  const AchievementsOverlay({
+    super.key,
+    required this.manager,
+    required this.onClose,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return _FrostedContainer(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.arrow_back, color: Colors.white70),
+                onPressed: onClose,
+              ),
+              const Text(
+                "ACHIEVEMENTS",
+                style: TextStyle(
+                  color: Colors.pinkAccent,
+                  fontSize: 20.0,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 2.0,
+                  shadows: [
+                    Shadow(color: Colors.pink, blurRadius: 10.0),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 48.0),
+            ],
+          ),
+          const SizedBox(height: 8.0),
+          Text(
+            "Unlocked: ${manager.unlockedAchievements.length} / 4",
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 12.0,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 16.0),
+          Expanded(
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                _buildAchievementItem(
+                  id: "combo_king",
+                  name: "Combo King",
+                  desc: "Reach a combo multiplier of 12x or higher.",
+                  reward: 100,
+                  color: Colors.amberAccent,
+                ),
+                _buildAchievementItem(
+                  id: "perfect_clear",
+                  name: "Perfect Clear",
+                  desc: "Complete any level without losing a single life.",
+                  reward: 100,
+                  color: Colors.cyanAccent,
+                ),
+                _buildAchievementItem(
+                  id: "demolitionist",
+                  name: "Demolitionist",
+                  desc: "Destroy 3 or more bricks in a single splash damage explosion.",
+                  reward: 100,
+                  color: Colors.orangeAccent,
+                ),
+                _buildAchievementItem(
+                  id: "drone_hunter",
+                  name: "Drone Hunter",
+                  desc: "Shoot down 5 active flying drone enemies in a single run.",
+                  reward: 100,
+                  color: Colors.pinkAccent,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAchievementItem({
+    required String id,
+    required String name,
+    required String desc,
+    required int reward,
+    required Color color,
+  }) {
+    bool isUnlocked = manager.unlockedAchievements.contains(id);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10.0),
+      padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 12.0),
+      decoration: BoxDecoration(
+        color: isUnlocked ? Colors.white.withOpacity(0.04) : Colors.white.withOpacity(0.01),
+        borderRadius: BorderRadius.circular(8.0),
+        border: Border.all(
+          color: isUnlocked ? color.withOpacity(0.3) : Colors.white.withOpacity(0.05),
+          width: 1.0,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8.0),
+            decoration: BoxDecoration(
+              color: isUnlocked ? color.withOpacity(0.1) : Colors.white.withOpacity(0.03),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              isUnlocked ? Icons.emoji_events : Icons.emoji_events_outlined,
+              color: isUnlocked ? color : Colors.white24,
+              size: 24.0,
+            ),
+          ),
+          const SizedBox(width: 14.0),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  style: TextStyle(
+                    color: isUnlocked ? Colors.white : Colors.white38,
+                    fontSize: 14.0,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 3.0),
+                Text(
+                  desc,
+                  style: TextStyle(
+                    color: isUnlocked ? Colors.white60 : Colors.white24,
+                    fontSize: 11.0,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10.0),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                isUnlocked ? "UNLOCKED" : "LOCKED",
+                style: TextStyle(
+                  color: isUnlocked ? Colors.greenAccent : Colors.white24,
+                  fontSize: 10.0,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 2.0),
+              Text(
+                "+$reward Coins",
+                style: TextStyle(
+                  color: isUnlocked ? Colors.amberAccent : Colors.white24,
+                  fontSize: 11.0,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class ShopOverlay extends StatelessWidget {
   final GameManager manager;
   final VoidCallback onClose;
@@ -626,9 +856,18 @@ class ShopOverlay extends StatelessWidget {
                           _buildShopItem(
                             id: 'ball_orange',
                             name: "Fiery Orange",
-                            desc: "Burning core + orange flame trails.",
-                            cost: 200,
+                            desc: "FIREBALL: Breaks armored bricks in 1 hit + splash damage!",
+                            cost: 250,
                             color: Colors.orangeAccent,
+                            category: 'ball',
+                            isPaddle: false,
+                          ),
+                          _buildShopItem(
+                            id: 'ball_purple',
+                            name: "Magnet Purple",
+                            desc: "MAGNET PULSE: Gently pulls ball towards paddle at the bottom!",
+                            cost: 400,
+                            color: Colors.purpleAccent,
                             category: 'ball',
                             isPaddle: false,
                           ),

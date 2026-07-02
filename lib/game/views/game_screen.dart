@@ -18,6 +18,7 @@ class _GameScreenState extends State<GameScreen>
   Duration _lastElapsedTime = Duration.zero;
   bool _isShopOpen = false;
   bool _isLevelSelectOpen = false;
+  bool _isAchievementsOpen = false;
 
   @override
   void initState() {
@@ -63,6 +64,9 @@ class _GameScreenState extends State<GameScreen>
               children: [
                 // 1. Core Physics Canvas View
                 GestureDetector(
+                  onTapDown: (_) {
+                    _manager.shootLasers();
+                  },
                   onHorizontalDragUpdate: (details) {
                     _manager.handlePaddleDrag(details.delta.dx);
                   },
@@ -110,6 +114,17 @@ class _GameScreenState extends State<GameScreen>
                       );
                     }
 
+                    if (_isAchievementsOpen) {
+                      return AchievementsOverlay(
+                        manager: _manager,
+                        onClose: () {
+                          setState(() {
+                            _isAchievementsOpen = false;
+                          });
+                        },
+                      );
+                    }
+
                     switch (_manager.state) {
                       case GamePlayState.menu:
                         return MenuOverlay(
@@ -123,6 +138,17 @@ class _GameScreenState extends State<GameScreen>
                           onOpenLevelSelect: () {
                             setState(() {
                               _isLevelSelectOpen = true;
+                            });
+                          },
+                          onOpenAchievements: () {
+                            setState(() {
+                              _isAchievementsOpen = true;
+                            });
+                          },
+                          onToggleMode: () {
+                            setState(() {
+                              _manager.isEndlessMode = !_manager.isEndlessMode;
+                              _manager.resetGame();
                             });
                           },
                         );
@@ -226,9 +252,9 @@ class _GameScreenState extends State<GameScreen>
               Row(
                 children: [
                   Text(
-                    "LV. ${_manager.level}",
-                    style: const TextStyle(
-                      color: Colors.cyanAccent,
+                    _manager.isEndlessMode ? "ENDLESS" : "LV. ${_manager.level}",
+                    style: TextStyle(
+                      color: _manager.isEndlessMode ? Colors.purpleAccent : Colors.cyanAccent,
                       fontSize: 16.0,
                       fontWeight: FontWeight.bold,
                     ),
@@ -314,6 +340,15 @@ class _GameScreenState extends State<GameScreen>
                   timer: _manager.glitchTimer,
                   color: Colors.purpleAccent,
                   maxDuration: 7.0,
+                ),
+              if (_manager.laserPaddleTimer > 0)
+                const SizedBox(height: 6.0),
+              if (_manager.laserPaddleTimer > 0)
+                _buildTimerBar(
+                  label: "⚡ LASER CANNON",
+                  timer: _manager.laserPaddleTimer,
+                  color: Colors.amberAccent,
+                  maxDuration: 6.0,
                 ),
             ],
           ),

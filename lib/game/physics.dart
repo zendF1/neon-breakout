@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'models/ball.dart';
 import 'models/paddle.dart';
 import 'models/brick.dart';
+import 'models/laser_bullet.dart';
+import 'models/drone_enemy.dart';
 
 class CollisionInfo {
   final bool collided;
@@ -160,5 +162,44 @@ class PhysicsEngine {
       return true;
     }
     return false;
+  }
+
+  static bool checkBallDroneCollision(Ball ball, DroneEnemy drone) {
+    if (drone.isDestroyed) return false;
+    
+    Rect droneRect = drone.rect;
+    
+    double closestX = ball.position.dx.clamp(droneRect.left, droneRect.right);
+    double closestY = ball.position.dy.clamp(droneRect.top, droneRect.bottom);
+    
+    double distanceX = ball.position.dx - closestX;
+    double distanceY = ball.position.dy - closestY;
+    
+    double distanceSquared = (distanceX * distanceX) + (distanceY * distanceY);
+    
+    if (distanceSquared < ball.radius * ball.radius) {
+      if (distanceX.abs() > distanceY.abs()) {
+        ball.bounceX();
+        double overlapX = ball.radius - distanceX.abs();
+        double displacementX = (ball.velocity.dx > 0) ? -overlapX : overlapX;
+        ball.position = Offset(ball.position.dx + displacementX, ball.position.dy);
+      } else {
+        ball.bounceY();
+        double overlapY = ball.radius - distanceY.abs();
+        double displacementY = (ball.velocity.dy > 0) ? -overlapY : overlapY;
+        ball.position = Offset(ball.position.dx, ball.position.dy + displacementY);
+      }
+      return true;
+    }
+    return false;
+  }
+
+  static bool checkLaserBrickCollision(LaserBullet bullet, Brick brick) {
+    if (brick.isDestroyed) return false;
+    return bullet.rect.overlaps(brick.rect);
+  }
+
+  static bool checkLaserPaddleCollision(LaserBullet bullet, Paddle paddle, double screenHeight) {
+    return bullet.rect.overlaps(paddle.getRect(screenHeight));
   }
 }

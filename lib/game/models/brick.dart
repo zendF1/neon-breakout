@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 enum BrickType { normal, armored, explosive, unbreakable }
 
 class Brick {
-  final Rect rect;
+  Rect rect;
   final BrickType type;
   final int maxHealth;
   int health;

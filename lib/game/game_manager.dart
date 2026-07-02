@@ -8,6 +8,8 @@ import 'models/power_up.dart';
 import 'models/particle.dart';
 import 'models/coin.dart';
 import 'models/hazard.dart';
+import 'models/laser_bullet.dart';
+import 'models/drone_enemy.dart';
 import 'physics.dart';
 import 'level_manager.dart';
 import 'audio_controller.dart';
@@ -59,6 +61,24 @@ class GameManager extends ChangeNotifier {
   String equippedBall = 'ball_white';
   List<String> unlockedItems = ['paddle_pink', 'ball_white'];
 
+  // Endless Mode
+  bool isEndlessMode = false;
+  int endlessHighScore = 0;
+  double endlessSlideTimer = 0.0;
+  double endlessPlayTime = 0.0;
+
+  // Drone Enemies & Laser Power-ups
+  final List<DroneEnemy> drones = [];
+  final List<LaserBullet> laserBullets = [];
+  final List<LaserBullet> enemyLasers = [];
+  double laserPaddleTimer = 0.0;
+  double paddleStunTimer = 0.0;
+  double droneSpawnTimer = 0.0;
+
+  // Achievements
+  int dronesDestroyedThisSession = 0;
+  List<String> unlockedAchievements = [];
+
   final AudioController audio = AudioController();
   final math.Random _random = math.Random();
 
@@ -93,6 +113,8 @@ class GameManager extends ChangeNotifier {
       equippedPaddle = prefs.getString('equippedPaddle') ?? 'paddle_pink';
       equippedBall = prefs.getString('equippedBall') ?? 'ball_white';
       unlockedItems = prefs.getStringList('unlockedItems') ?? ['paddle_pink', 'ball_white'];
+      endlessHighScore = prefs.getInt('endlessHighScore') ?? 0;
+      unlockedAchievements = prefs.getStringList('unlockedAchievements') ?? [];
       
       // Sync cosmetics to models
       _applyCosmeticsToModels();
@@ -111,6 +133,8 @@ class GameManager extends ChangeNotifier {
       await prefs.setString('equippedPaddle', equippedPaddle);
       await prefs.setString('equippedBall', equippedBall);
       await prefs.setStringList('unlockedItems', unlockedItems);
+      await prefs.setInt('endlessHighScore', endlessHighScore);
+      await prefs.setStringList('unlockedAchievements', unlockedAchievements);
     } catch (e) {
       // Fail silently
     }
@@ -126,6 +150,9 @@ class GameManager extends ChangeNotifier {
     } else if (equippedBall == 'ball_orange') {
       ballColor = Colors.orangeAccent;
       ballGlow = Colors.orange.withOpacity(0.6);
+    } else if (equippedBall == 'ball_purple') {
+      ballColor = Colors.purpleAccent;
+      ballGlow = Colors.purple.withOpacity(0.6);
     }
     
     return Ball(
@@ -244,12 +271,23 @@ class GameManager extends ChangeNotifier {
     slowMotionTimer = 0.0;
     glitchTimer = 0.0;
     
+    // Reset upgrades & enemies
+    laserPaddleTimer = 0.0;
+    paddleStunTimer = 0.0;
+    endlessSlideTimer = 0.0;
+    endlessPlayTime = 0.0;
+    dronesDestroyedThisSession = 0;
+    droneSpawnTimer = 0.0;
+
     fallingCoins.clear();
     fallingHazards.clear();
     balls.clear();
     bricks.clear();
     powerUps.clear();
     floatingTexts.clear();
+    drones.clear();
+    laserBullets.clear();
+    enemyLasers.clear();
     
     _applyCosmeticsToModels();
     
@@ -261,8 +299,50 @@ class GameManager extends ChangeNotifier {
 
     _applyDifficultyScaling();
     
-    bricks.addAll(LevelManager.buildLevel(level, screenWidth));
+    if (isEndlessMode) {
+      bricks.addAll(_generateEndlessRow(0));
+      bricks.addAll(_generateEndlessRow(1));
+      bricks.addAll(_generateEndlessRow(2));
+      bricks.addAll(_generateEndlessRow(3));
+    } else {
+      bricks.addAll(LevelManager.buildLevel(level, screenWidth));
+    }
     notifyListeners();
+  }
+
+  List<Brick> _generateEndlessRow(int rowIndex) {
+    List<Brick> rowBricks = [];
+    double sideMargin = 12.0;
+    double availableWidth = screenWidth - (sideMargin * 2) - (LevelManager.spacing * (LevelManager.cols - 1));
+    double brickWidth = availableWidth / LevelManager.cols;
+    double brickHeight = 18.0;
+
+    double y = LevelManager.topOffset + rowIndex * (brickHeight + LevelManager.spacing);
+
+    for (int col = 0; col < LevelManager.cols; col++) {
+      if (_random.nextDouble() < 0.15) continue; // 15% empty slots
+
+      double randVal = _random.nextDouble();
+      BrickType type = BrickType.normal;
+      int maxHealth = 1;
+
+      if (randVal < 0.08) {
+        type = BrickType.unbreakable;
+      } else if (randVal < 0.20) {
+        type = BrickType.explosive;
+      } else if (randVal < 0.40) {
+        type = BrickType.armored;
+        maxHealth = 2;
+      }
+
+      double x = sideMargin + col * (brickWidth + LevelManager.spacing);
+      rowBricks.add(Brick(
+        rect: Rect.fromLTWH(x, y, brickWidth, brickHeight),
+        type: type,
+        maxHealth: maxHealth,
+      ));
+    }
+    return rowBricks;
   }
 
   void startGame() {
@@ -363,7 +443,61 @@ class GameManager extends ChangeNotifier {
 
   void handlePaddleDrag(double deltaX) {
     if (state != GamePlayState.playing) return;
+    if (paddleStunTimer > 0) return;
     paddle.move(deltaX, screenWidth);
+  }
+
+  void shootLasers() {
+    if (state != GamePlayState.playing || laserPaddleTimer <= 0 || paddleStunTimer > 0) return;
+    Rect paddleRect = paddle.getRect(screenHeight);
+    laserBullets.add(LaserBullet(
+      position: Offset(paddleRect.left + 5.0, paddleRect.top),
+      velocity: const Offset(0.0, -420.0),
+      isEnemy: false,
+    ));
+    laserBullets.add(LaserBullet(
+      position: Offset(paddleRect.right - 5.0, paddleRect.top),
+      velocity: const Offset(0.0, -420.0),
+      isEnemy: false,
+    ));
+    audio.playSFX('hit');
+  }
+
+  void _unlockAchievement(String id) {
+    if (!unlockedAchievements.contains(id)) {
+      unlockedAchievements.add(id);
+      coins += 100;
+      saveGameStats();
+      
+      floatingTexts.add(FloatingText(
+        text: "🏆 UNLOCKED: ${id.toUpperCase().replaceAll('_', ' ')}! +100 Coins",
+        position: Offset(screenWidth / 2, screenHeight / 2 - 100.0),
+        color: Colors.amberAccent,
+        life: 3.5,
+      ));
+    }
+  }
+
+  void _triggerFireballSplash(Offset center) {
+    double radius = 55.0;
+    int destroyedCount = 0;
+    particleSystem.spawnExplosion(center, Colors.orangeAccent, count: 12);
+    
+    var brickList = List<Brick>.from(bricks);
+    for (var otherBrick in brickList) {
+      if (otherBrick.isDestroyed || otherBrick.type == BrickType.unbreakable) continue;
+      double distance = (otherBrick.rect.center - center).distance;
+      if (distance <= radius) {
+        otherBrick.health = 0;
+        otherBrick.isDestroyed = true;
+        _handleBrickDestruction(otherBrick);
+        destroyedCount++;
+      }
+    }
+    
+    if (destroyedCount >= 3) {
+      _unlockAchievement('demolitionist');
+    }
   }
 
   /// Update physics, entities, particle trails, and time modifiers on every frame
@@ -422,6 +556,65 @@ class GameManager extends ChangeNotifier {
           text: "Glitch Resolved",
           position: Offset(screenWidth / 2, screenHeight / 2 + 40),
           color: Colors.greenAccent,
+        ));
+      }
+    }
+
+    if (laserPaddleTimer > 0) {
+      laserPaddleTimer -= deltaTime;
+      if (laserPaddleTimer <= 0) {
+        floatingTexts.add(FloatingText(
+          text: "Laser Depleted",
+          position: paddle.getRect(screenHeight).topCenter - const Offset(0, 10),
+          color: Colors.redAccent,
+        ));
+      }
+    }
+
+    if (paddleStunTimer > 0) {
+      paddleStunTimer -= deltaTime;
+      if (paddleStunTimer <= 0) {
+        floatingTexts.add(FloatingText(
+          text: "STUN RESOLVED",
+          position: paddle.getRect(screenHeight).topCenter - const Offset(0, 10),
+          color: Colors.greenAccent,
+        ));
+      }
+    }
+
+    if (isEndlessMode) {
+      endlessPlayTime += deltaTime;
+      endlessSlideTimer += deltaTime;
+      if (endlessSlideTimer >= 10.0) {
+        endlessSlideTimer = 0.0;
+        double slideDistance = 18.0 + 4.0; // brickHeight + spacing
+        var brickList = List<Brick>.from(bricks);
+        for (var brick in brickList) {
+          if (brick.isDestroyed) continue;
+          brick.rect = brick.rect.translate(0, slideDistance);
+          
+          if (brick.rect.bottom >= screenHeight - 90.0) {
+            state = GamePlayState.gameOver;
+            audio.stopBGM();
+            if (score > endlessHighScore) {
+              endlessHighScore = score;
+            }
+            saveGameStats();
+            notifyListeners();
+            return;
+          }
+        }
+        // Shift existing row indices down visually by recreating the list
+        // Or simply translate their rectangles (which we did).
+        // Since we spawn a new row at index 0, we should shift existing active bricks down.
+        // We did that. Let's spawn new row:
+        bricks.addAll(_generateEndlessRow(0));
+        
+        floatingTexts.add(FloatingText(
+          text: "⚠️ GRID SLID DOWN!",
+          position: Offset(screenWidth / 2, LevelManager.topOffset),
+          color: Colors.redAccent,
+          life: 1.5,
         ));
       }
     }
@@ -520,10 +713,131 @@ class GameManager extends ChangeNotifier {
       }
     }
 
+    // 6c. Spawn Drones
+    if (!isEndlessMode && level >= 11 && drones.isEmpty) {
+      drones.add(DroneEnemy(position: Offset(screenWidth / 2, 130.0)));
+    } else if (isEndlessMode && endlessPlayTime >= 40.0 && drones.isEmpty) {
+      drones.add(DroneEnemy(position: Offset(screenWidth / 2, 130.0)));
+    }
+
+    // 6d. Update Drones
+    for (int i = drones.length - 1; i >= 0; i--) {
+      var drone = drones[i];
+      drone.update(deltaTime, screenWidth);
+
+      for (var ball in balls) {
+        if (PhysicsEngine.checkBallDroneCollision(ball, drone)) {
+          drone.health--;
+          particleSystem.spawnExplosion(drone.position, Colors.purpleAccent, count: 8);
+          triggerShake(5.0);
+          audio.playSFX('hit');
+
+          if (drone.health <= 0) {
+            drone.isDestroyed = true;
+            particleSystem.spawnExplosion(drone.position, Colors.pinkAccent, count: 20);
+            audio.playSFX('lose');
+            score += 100;
+            
+            floatingTexts.add(FloatingText(
+              text: "+100 Drone Hunter",
+              position: drone.position,
+              color: Colors.pinkAccent,
+            ));
+
+            dronesDestroyedThisSession++;
+            if (dronesDestroyedThisSession >= 5) {
+              _unlockAchievement('drone_hunter');
+            }
+
+            drones.removeAt(i);
+            break;
+          }
+        }
+      }
+
+      if (drone.isDestroyed) continue;
+
+      if (drone.shootCooldown <= 0) {
+        drone.shootCooldown = 4.5;
+        enemyLasers.add(LaserBullet(
+          position: Offset(drone.position.dx, drone.position.dy + 12.0),
+          velocity: const Offset(0.0, 180.0),
+          isEnemy: true,
+        ));
+        audio.playSFX('hit');
+      }
+    }
+
+    // 6e. Update Player Laser Bullets
+    for (int i = laserBullets.length - 1; i >= 0; i--) {
+      var bullet = laserBullets[i];
+      bullet.update(deltaTime);
+
+      bool hitAnything = false;
+      for (var brick in bricks) {
+        if (brick.isDestroyed) continue;
+        if (PhysicsEngine.checkLaserBrickCollision(bullet, brick)) {
+          bool destroyed = brick.hit();
+          if (destroyed) {
+            _handleBrickDestruction(brick);
+          } else {
+            particleSystem.spawnExplosion(bullet.position, brick.color, count: 3);
+          }
+          hitAnything = true;
+          break;
+        }
+      }
+
+      if (hitAnything || bullet.position.dy < 0) {
+        laserBullets.removeAt(i);
+      }
+    }
+
+    // 6f. Update Enemy Laser Bullets
+    for (int i = enemyLasers.length - 1; i >= 0; i--) {
+      var bullet = enemyLasers[i];
+      bullet.update(deltaTime);
+
+      if (PhysicsEngine.checkLaserPaddleCollision(bullet, paddle, screenHeight)) {
+        paddleStunTimer = 1.5;
+        triggerShake(8.0);
+        audio.playSFX('lose');
+        particleSystem.spawnExplosion(bullet.position, Colors.redAccent, count: 12);
+        
+        floatingTexts.add(FloatingText(
+          text: "PADDLE STUNNED!",
+          position: paddle.getRect(screenHeight).topCenter - const Offset(0, 15),
+          color: Colors.redAccent,
+        ));
+
+        enemyLasers.removeAt(i);
+        continue;
+      }
+
+      if (bullet.position.dy > screenHeight) {
+        enemyLasers.removeAt(i);
+      }
+    }
+
     // 7. Update Balls, Physics & Collisions
     for (int i = balls.length - 1; i >= 0; i--) {
       var ball = balls[i];
       ball.update(deltaTime);
+
+      // Magnet Ball gravity pulling towards paddle
+      if (equippedBall == 'ball_purple' && ball.position.dy > screenHeight - 160.0 && ball.velocity.dy > 0) {
+        double diffX = paddle.positionX - ball.position.dx;
+        ball.velocity = Offset(ball.velocity.dx + diffX * 3.5 * deltaTime, ball.velocity.dy);
+        if (_random.nextDouble() < 0.3) {
+          particleSystem.particles.add(Particle(
+            position: ball.position,
+            velocity: Offset((_random.nextDouble() - 0.5) * 10, (_random.nextDouble() - 0.5) * 10),
+            color: Colors.purpleAccent.withOpacity(0.5),
+            size: 2.0,
+            lifetimeSeconds: 0.3,
+          ));
+        }
+      }
 
       // Boundary Collisions
       String? boundaryHit = PhysicsEngine.checkBoundaryCollision(ball, screenWidth, screenHeight);
@@ -563,10 +877,20 @@ class GameManager extends ChangeNotifier {
         if (hitBrick) {
           triggerShake(3.0);
           audio.playSFX('hit');
-          bool destroyed = brick.hit();
+          
+          bool destroyed;
+          if (equippedBall == 'ball_orange' && brick.type != BrickType.unbreakable) {
+            brick.health = 0;
+            destroyed = true;
+          } else {
+            destroyed = brick.hit();
+          }
           
           if (destroyed) {
             _handleBrickDestruction(brick);
+            if (equippedBall == 'ball_orange') {
+              _triggerFireballSplash(brick.rect.center);
+            }
           } else {
             particleSystem.spawnExplosion(ball.position, brick.color, count: 5);
           }
@@ -588,8 +912,14 @@ class GameManager extends ChangeNotifier {
       if (lives <= 0) {
         state = GamePlayState.gameOver;
         audio.stopBGM();
-        if (score > highScore) {
-          highScore = score;
+        if (isEndlessMode) {
+          if (score > endlessHighScore) {
+            endlessHighScore = score;
+          }
+        } else {
+          if (score > highScore) {
+            highScore = score;
+          }
         }
         saveGameStats();
       } else {
@@ -606,11 +936,15 @@ class GameManager extends ChangeNotifier {
     }
 
     // 9. Check Level Complete
-    if (bricks.where((b) => b.type != BrickType.unbreakable).every((b) => b.isDestroyed)) {
+    if (!isEndlessMode && bricks.isNotEmpty && bricks.where((b) => b.type != BrickType.unbreakable).every((b) => b.isDestroyed)) {
       state = GamePlayState.levelComplete;
       audio.stopBGM();
       audio.playSFX('win');
       
+      if (lives == 3) {
+        _unlockAchievement('perfect_clear');
+      }
+
       // Unlock next level
       maxUnlockedLevel = math.max(maxUnlockedLevel, level + 1);
       
@@ -709,6 +1043,10 @@ class GameManager extends ChangeNotifier {
     combo++;
     comboTimer = 2.5;
 
+    if (combo >= 12) {
+      _unlockAchievement('combo_king');
+    }
+
     // Award scores
     if (combo > 1) {
       score += combo * 2;
@@ -748,8 +1086,8 @@ class GameManager extends ChangeNotifier {
       ));
     }
 
-    // If level >= 11, spawn falling hazards (10% Bomb, 10% Glitch Traps)
-    if (level >= 11) {
+    // If level >= 11 or Endless Mode, spawn falling hazards (10% Bomb, 10% Glitch Traps)
+    if (level >= 11 || isEndlessMode) {
       double randVal = _random.nextDouble();
       if (randVal < 0.10) {
         fallingHazards.add(Hazard(position: brick.rect.center, type: HazardType.bomb));
@@ -838,6 +1176,10 @@ class GameManager extends ChangeNotifier {
       case PowerUpType.slowMotion:
         slowMotionTimer = 8.0;
         _applyDifficultyScaling();
+        break;
+
+      case PowerUpType.laserPaddle:
+        laserPaddleTimer = 6.0;
         break;
     }
   }
