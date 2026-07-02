@@ -34,6 +34,9 @@ class ParticleSystem {
   final math.Random _random = math.Random();
 
   void update(double deltaTime) {
+    if (particles.length > 120) {
+      particles.removeRange(0, particles.length - 120);
+    }
     for (int i = particles.length - 1; i >= 0; i--) {
       particles[i].update(deltaTime);
       if (particles[i].isDead) {
@@ -43,6 +46,7 @@ class ParticleSystem {
   }
 
   void spawnExplosion(Offset position, Color color, {int count = 12}) {
+    if (particles.length > 120) return;
     for (int i = 0; i < count; i++) {
       double angle = _random.nextDouble() * 2 * math.pi;
       double speed = 50.0 + _random.nextDouble() * 150.0;
@@ -62,7 +66,7 @@ class ParticleSystem {
   }
 
   void spawnBrickDebris(Rect rect, Color color, {int count = 8}) {
-    // Spawn particles inside the brick bounding box
+    if (particles.length > 120) return;
     for (int i = 0; i < count; i++) {
       double x = rect.left + _random.nextDouble() * rect.width;
       double y = rect.top + _random.nextDouble() * rect.height;

@@ -89,61 +89,57 @@ class GamePainter extends CustomPainter {
   }
 
   void _drawBricks(Canvas canvas) {
+    final Paint glowPaint = Paint()
+      ..style = PaintingStyle.fill;
+    final Paint fillPaint = Paint()
+      ..style = PaintingStyle.fill;
+    final Paint borderPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+    final Paint extraPaint = Paint();
+
     for (var brick in manager.bricks) {
       if (brick.isDestroyed) continue;
 
       RRect rrect = RRect.fromRectAndRadius(brick.rect, const Radius.circular(4.0));
 
       // 1. Draw Neon Glow
-      final Paint glowPaint = Paint()
-        ..color = brick.glowColor
-        ..style = PaintingStyle.fill
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6.0);
+      glowPaint.color = brick.glowColor;
+      glowPaint.maskFilter = const MaskFilter.blur(BlurStyle.normal, 6.0);
       canvas.drawRRect(rrect, glowPaint);
 
       // 2. Draw Solid Brick Fill
-      final Paint fillPaint = Paint()
-        ..color = Color.alphaBlend(brick.color.withOpacity(0.15), const Color(0xFF141320))
-        ..style = PaintingStyle.fill;
+      fillPaint.color = Color.alphaBlend(brick.color.withOpacity(0.15), const Color(0xFF141320));
       canvas.drawRRect(rrect, fillPaint);
 
       // 3. Draw Neon Border
-      final Paint borderPaint = Paint()
-        ..color = brick.color
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5;
+      borderPaint.color = brick.color;
       canvas.drawRRect(rrect, borderPaint);
 
       // 4. Custom decals
       if (brick.type == BrickType.explosive) {
-        final Paint crossPaint = Paint()
-          ..color = brick.color.withOpacity(0.8)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.5;
-        canvas.drawLine(brick.rect.topLeft + const Offset(4, 4), brick.rect.bottomRight - const Offset(4, 4), crossPaint);
-        canvas.drawLine(brick.rect.topRight + const Offset(-4, 4), brick.rect.bottomLeft - const Offset(-4, 4), crossPaint);
+        extraPaint.color = brick.color.withOpacity(0.8);
+        extraPaint.style = PaintingStyle.stroke;
+        extraPaint.strokeWidth = 1.5;
+        canvas.drawLine(brick.rect.topLeft + const Offset(4, 4), brick.rect.bottomRight - const Offset(4, 4), extraPaint);
+        canvas.drawLine(brick.rect.topRight + const Offset(-4, 4), brick.rect.bottomLeft - const Offset(-4, 4), extraPaint);
       } else if (brick.type == BrickType.armored && brick.health > 1) {
-        final Paint armorPaint = Paint()
-          ..color = brick.color.withOpacity(0.5)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.0;
-        canvas.drawRRect(RRect.fromRectAndRadius(brick.rect.deflate(4.0), const Radius.circular(2.0)), armorPaint);
+        extraPaint.color = brick.color.withOpacity(0.5);
+        extraPaint.style = PaintingStyle.stroke;
+        extraPaint.strokeWidth = 1.0;
+        canvas.drawRRect(RRect.fromRectAndRadius(brick.rect.deflate(4.0), const Radius.circular(2.0)), extraPaint);
       } else if (brick.type == BrickType.unbreakable) {
-        // Draw steel bolts/rivets inside the unbreakable block to indicate solid metal
-        final Paint boltPaint = Paint()
-          ..color = brick.color.withOpacity(0.6)
-          ..style = PaintingStyle.fill;
-        canvas.drawCircle(brick.rect.topLeft + const Offset(5, 5), 1.8, boltPaint);
-        canvas.drawCircle(brick.rect.topRight + const Offset(-5, 5), 1.8, boltPaint);
-        canvas.drawCircle(brick.rect.bottomLeft + const Offset(5, -5), 1.8, boltPaint);
-        canvas.drawCircle(brick.rect.bottomRight + const Offset(-5, -5), 1.8, boltPaint);
+        extraPaint.color = brick.color.withOpacity(0.6);
+        extraPaint.style = PaintingStyle.fill;
+        canvas.drawCircle(brick.rect.topLeft + const Offset(5, 5), 1.8, extraPaint);
+        canvas.drawCircle(brick.rect.topRight + const Offset(-5, 5), 1.8, extraPaint);
+        canvas.drawCircle(brick.rect.bottomLeft + const Offset(5, -5), 1.8, extraPaint);
+        canvas.drawCircle(brick.rect.bottomRight + const Offset(-5, -5), 1.8, extraPaint);
 
-        // Draw a subtle horizontal line segment to look like a metal plate
-        final Paint metalLinePaint = Paint()
-          ..color = brick.color.withOpacity(0.4)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.0;
-        canvas.drawLine(brick.rect.centerLeft + const Offset(10, 0), brick.rect.centerRight - const Offset(10, 0), metalLinePaint);
+        extraPaint.color = brick.color.withOpacity(0.4);
+        extraPaint.style = PaintingStyle.stroke;
+        extraPaint.strokeWidth = 1.0;
+        canvas.drawLine(brick.rect.centerLeft + const Offset(10, 0), brick.rect.centerRight - const Offset(10, 0), extraPaint);
       }
     }
   }
@@ -322,12 +318,14 @@ class GamePainter extends CustomPainter {
   }
 
   void _drawParticles(Canvas canvas) {
+    final Paint paint = Paint()..style = PaintingStyle.fill;
     for (var particle in manager.particleSystem.particles) {
-      final Paint paint = Paint()
-        ..color = particle.color.withOpacity(particle.life)
-        ..style = PaintingStyle.fill;
-
-      canvas.drawCircle(particle.position, particle.size * particle.life, paint);
+      paint.color = particle.color.withOpacity(particle.life);
+      canvas.drawCircle(
+        particle.position, 
+        particle.size * (particle.life > 0.0 ? particle.life : 0.001), 
+        paint
+      );
     }
   }
 
@@ -557,19 +555,20 @@ class GamePainter extends CustomPainter {
 
     for (int j = 0; j < 3; j++) {
       double angleOffset = j * (2 * math.pi / 3);
-      Path path = Path();
-      path.moveTo(0, 0);
-      for (double theta = 0; theta < 2 * math.pi; theta += 0.1) {
-        double r = (theta / (2 * math.pi)) * radius;
-        double x = math.cos(theta + angleOffset) * r;
-        double y = math.sin(theta + angleOffset) * r;
-        if (theta == 0) {
-          path.moveTo(x, y);
-        } else {
-          path.lineTo(x, y);
-        }
-      }
-      canvas.drawPath(path, spiralPaint);
+      canvas.drawArc(
+        Rect.fromCircle(center: Offset.zero, radius: radius),
+        angleOffset,
+        math.pi / 2,
+        false,
+        spiralPaint,
+      );
+      canvas.drawArc(
+        Rect.fromCircle(center: Offset.zero, radius: radius * 0.6),
+        angleOffset + math.pi / 3,
+        math.pi / 2,
+        false,
+        spiralPaint,
+      );
     }
     canvas.restore();
 
