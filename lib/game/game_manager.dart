@@ -79,6 +79,13 @@ class GameManager extends ChangeNotifier {
   int dronesDestroyedThisSession = 0;
   List<String> unlockedAchievements = [];
 
+  // Environmental Hazards
+  double empStormTimer = 0.0;
+  double empStormCooldown = 25.0;
+  Offset? blackHolePosition;
+  double blackHoleTimer = 0.0;
+  double blackHoleCooldown = 15.0;
+
   final AudioController audio = AudioController();
   final math.Random _random = math.Random();
 
@@ -279,6 +286,13 @@ class GameManager extends ChangeNotifier {
     dronesDestroyedThisSession = 0;
     droneSpawnTimer = 0.0;
 
+    // Reset environmental hazards
+    empStormTimer = 0.0;
+    empStormCooldown = 25.0;
+    blackHolePosition = null;
+    blackHoleTimer = 0.0;
+    blackHoleCooldown = 15.0;
+
     fallingCoins.clear();
     fallingHazards.clear();
     balls.clear();
@@ -444,7 +458,8 @@ class GameManager extends ChangeNotifier {
   void handlePaddleDrag(double deltaX) {
     if (state != GamePlayState.playing) return;
     if (paddleStunTimer > 0) return;
-    paddle.move(deltaX, screenWidth);
+    double multiplier = empStormTimer > 0 ? -1.0 : 1.0;
+    paddle.move(deltaX * multiplier, screenWidth);
   }
 
   void shootLasers() {
@@ -578,6 +593,60 @@ class GameManager extends ChangeNotifier {
           text: "STUN RESOLVED",
           position: paddle.getRect(screenHeight).topCenter - const Offset(0, 10),
           color: Colors.greenAccent,
+        ));
+      }
+    }
+
+    // EMP Storm Logic
+    if (empStormTimer > 0) {
+      empStormTimer -= deltaTime;
+      if (empStormTimer <= 0) {
+        floatingTexts.add(FloatingText(
+          text: "EMP Storm Cleared",
+          position: Offset(screenWidth / 2, screenHeight / 2),
+          color: Colors.greenAccent,
+        ));
+      }
+    } else {
+      empStormCooldown -= deltaTime;
+      if (empStormCooldown <= 0) {
+        empStormTimer = 4.5;
+        empStormCooldown = 35.0;
+        audio.playSFX('lose');
+        floatingTexts.add(FloatingText(
+          text: "⚠️ EMP STORM: CONTROLS INVERTED!",
+          position: Offset(screenWidth / 2, screenHeight / 2 - 40),
+          color: Colors.redAccent,
+          life: 2.0,
+        ));
+      }
+    }
+
+    // Black Hole Logic
+    if (blackHoleTimer > 0) {
+      blackHoleTimer -= deltaTime;
+      if (blackHoleTimer <= 0) {
+        blackHolePosition = null;
+        floatingTexts.add(FloatingText(
+          text: "Vortex Collapsed",
+          position: Offset(screenWidth / 2, screenHeight / 2 + 20),
+          color: Colors.cyanAccent,
+        ));
+      }
+    } else {
+      blackHoleCooldown -= deltaTime;
+      if (blackHoleCooldown <= 0) {
+        double bhX = 50.0 + _random.nextDouble() * (screenWidth - 100.0);
+        double bhY = 220.0 + _random.nextDouble() * (screenHeight - 420.0);
+        blackHolePosition = Offset(bhX, bhY);
+        blackHoleTimer = 8.0;
+        blackHoleCooldown = 28.0;
+        audio.playSFX('buff');
+        floatingTexts.add(FloatingText(
+          text: "🌀 BLACK HOLE VORTEX SPAWNED!",
+          position: blackHolePosition!,
+          color: Colors.purpleAccent,
+          life: 2.0,
         ));
       }
     }
@@ -823,6 +892,29 @@ class GameManager extends ChangeNotifier {
     for (int i = balls.length - 1; i >= 0; i--) {
       var ball = balls[i];
       ball.update(deltaTime);
+
+      // Black Hole gravitational pull
+      if (blackHolePosition != null) {
+        Offset direction = blackHolePosition! - ball.position;
+        double distance = direction.distance;
+        if (distance > 10.0 && distance < 250.0) {
+          double force = (2800.0 / distance).clamp(10.0, 350.0);
+          Offset pullVelocity = (direction / distance) * force * deltaTime;
+          ball.velocity += pullVelocity;
+
+          if (_random.nextDouble() < 0.25) {
+            Offset normal = Offset(-direction.dy, direction.dx) / distance;
+            Offset particleVel = ((direction / distance) * 40.0) + (normal * 50.0);
+            particleSystem.particles.add(Particle(
+              position: ball.position,
+              velocity: particleVel,
+              color: Colors.purpleAccent.withOpacity(0.4),
+              size: 2.0,
+              lifetimeSeconds: 0.5,
+            ));
+          }
+        }
+      }
 
       // Magnet Ball gravity pulling towards paddle
       if (equippedBall == 'ball_purple' && ball.position.dy > screenHeight - 160.0 && ball.velocity.dy > 0) {

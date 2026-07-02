@@ -22,6 +22,12 @@ class GamePainter extends CustomPainter {
     // 2. Draw Background
     _drawBackground(canvas, size);
 
+    // 2b. Draw EMP Storm Warning Overlay
+    _drawEMPStormOverlay(canvas, size);
+
+    // 2c. Draw Black Hole Vortex
+    _drawBlackHole(canvas);
+
     // 3. Draw Bricks
     _drawBricks(canvas);
 
@@ -500,6 +506,83 @@ class GamePainter extends CustomPainter {
         ..style = PaintingStyle.fill;
       canvas.drawRect(bullet.rect.deflate(0.5), corePaint);
     }
+  }
+
+  void _drawEMPStormOverlay(Canvas canvas, Size size) {
+    if (manager.empStormTimer <= 0) return;
+
+    final rand = math.Random();
+    
+    if (rand.nextDouble() < 0.8) {
+      final Paint borderPaint = Paint()
+        ..color = Colors.redAccent.withOpacity(0.2)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 12.0
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10.0);
+      canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), borderPaint);
+    }
+
+    final Paint linePaint = Paint()
+      ..color = Colors.red.withOpacity(0.08)
+      ..strokeWidth = 2.0;
+    for (int k = 0; k < 3; k++) {
+      double y = rand.nextDouble() * size.height;
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), linePaint);
+    }
+  }
+
+  void _drawBlackHole(Canvas canvas) {
+    if (manager.blackHolePosition == null) return;
+
+    final Offset pos = manager.blackHolePosition!;
+    final double radius = 30.0;
+    final int timeMs = DateTime.now().millisecondsSinceEpoch;
+
+    final Paint glowPaint = Paint()
+      ..color = Colors.purple.withOpacity(0.5)
+      ..style = PaintingStyle.fill
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18.0);
+    
+    double pulse = math.sin(timeMs * 0.005).abs() * 6.0;
+    canvas.drawCircle(pos, radius + pulse, glowPaint);
+
+    final Paint spiralPaint = Paint()
+      ..color = Colors.purpleAccent
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0;
+    
+    canvas.save();
+    canvas.translate(pos.dx, pos.dy);
+    canvas.rotate(timeMs * 0.002);
+
+    for (int j = 0; j < 3; j++) {
+      double angleOffset = j * (2 * math.pi / 3);
+      Path path = Path();
+      path.moveTo(0, 0);
+      for (double theta = 0; theta < 2 * math.pi; theta += 0.1) {
+        double r = (theta / (2 * math.pi)) * radius;
+        double x = math.cos(theta + angleOffset) * r;
+        double y = math.sin(theta + angleOffset) * r;
+        if (theta == 0) {
+          path.moveTo(x, y);
+        } else {
+          path.lineTo(x, y);
+        }
+      }
+      canvas.drawPath(path, spiralPaint);
+    }
+    canvas.restore();
+
+    final Paint corePaint = Paint()
+      ..color = const Color(0xFF0F0E17)
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(pos, 10.0, corePaint);
+
+    final Paint coreBorder = Paint()
+      ..color = Colors.purpleAccent
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+    canvas.drawCircle(pos, 10.0, coreBorder);
   }
 
   @override

@@ -350,6 +350,15 @@ class _GameScreenState extends State<GameScreen>
                   color: Colors.amberAccent,
                   maxDuration: 6.0,
                 ),
+              if (_manager.empStormTimer > 0)
+                const SizedBox(height: 6.0),
+              if (_manager.empStormTimer > 0)
+                _buildTimerBar(
+                  label: "⚠️ EMP STORM",
+                  timer: _manager.empStormTimer,
+                  color: Colors.redAccent,
+                  maxDuration: 4.5,
+                ),
             ],
           ),
         );
